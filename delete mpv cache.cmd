@@ -1,0 +1,1 @@
+del /Q %appdata%\mpv\watch_later\*
