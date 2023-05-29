@@ -82,10 +82,10 @@ class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
                 self.respond(400, msg)
             else:
                 try:
-                    pipe = Popen(['youtube-dl', urls, '-o', location] +
+                    pipe = Popen(['yt-dlp', urls, '-o', location] +
                                  query.get('ytdl_args', []))
                 except FileNotFoundError as e:
-                    missing_bin('youtube-dl')
+                    missing_bin('yt-dlp')
                 self.respond(200, "downloading...")
         else:
             self.respond(400)
