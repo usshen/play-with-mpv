@@ -1,0 +1,10 @@
+### Lines starting with # are comments
+
+## Save all videos under Movies directory in your home directory
+
+########
+#Subtitle#
+########
+--sub-lang=en,ja
+--write-auto-sub
+--sub-format srt/best
