@@ -1,24 +1,17 @@
 #!/usr/bin/env python
 # Plays MPV when instructed to by a chrome extension =]
-
+import os
 import sys
 import argparse
-from subprocess import Popen
+import http.server as BaseHTTPServer
+import urllib.parse as urlparse
+import subprocess
+from os import listdir
 
-if sys.version_info[0] < 3:  # python 2
-    import BaseHTTPServer
-    import urlparse
-    class CompatibilityMixin:
-        def send_body(self, msg):
-            self.wfile.write(msg+'\n')
-            self.wfile.close()
 
-else:  # python 3
-    import http.server as BaseHTTPServer
-    import urllib.parse as urlparse
-    class CompatibilityMixin:
-        def send_body(self, msg):
-            self.wfile.write(bytes(msg+'\n', 'utf-8'))
+class CompatibilityMixin:
+    def send_body(self, msg):
+        self.wfile.write(bytes(msg+'\n', 'utf-8'))
 
 
 class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
@@ -30,6 +23,7 @@ class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
             self.send_body(body)
 
     def do_GET(self):
+        global absolute_path
         try:
             url = urlparse.urlparse(self.path)
             query = urlparse.parse_qs(url.query)
@@ -40,53 +34,22 @@ class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
         if "play_url" in query:
             urls = str(query["play_url"][0])
             if urls.startswith('magnet:') or urls.endswith('.torrent'):
-                try:
-                    pipe = Popen(['peerflix', '-k',  urls, '--', '--force-window'] +
-                                 query.get("mpv_args", []))
-                except FileNotFoundError as e:
-                    missing_bin('peerflix')
+                pass
             else:
                 try:
-                    pipe = Popen(['mpv', urls, '--force-window'] +
-                                 query.get("mpv_args", []))
-                except FileNotFoundError as e:
-                    missing_bin('mpv')
-            self.respond(200, "playing...")
-        elif "cast_url" in query:
-            urls = str(query["cast_url"][0])
-            if urls.startswith('magnet:') or urls.endswith('.torrent'):
-                print(" === WARNING: Casting torrents not yet fully supported!")
-                try:
-                    with Popen(['mkchromecast', '--video',
-                                '--source-url', 'http://localhost:8888']):
-                        pass
-                except FileNotFoundError as e:
-                    missing_bin('mkchromecast')
-                pipe.terminate()
-            else:
-                try:
-                    pipe = Popen(['mkchromecast', '--video', '-y', urls])
-                except FileNotFoundError as e:
-                    missing_bin('mkchromecast')
-            self.respond(200, "casting...")
+                    subtitles_list = [os.path.join(absolute_path,subtitle_file) for subtitle_file in listdir(absolute_path)
+                                      if subtitle_file.endswith('vtt') and subtitle_file.startswith("-")]
+                    subtitles = ';'.join(subtitles_list)
+                    subprocess.run(
+                        fr'cmd /c yt-dlp --no-part -o - {urls} | mpv - --sub-files-set={subtitles}',capture_output=True, shell=True)
 
-        elif "fairuse_url" in query:
-            urls = str(query["fairuse_url"][0])
-            location = query.get("location", ['~/Downloads/'])[0]
-            if "%" not in location:
-                location += "%(title)s.%(ext)s"
-            print("downloading ", urls, "to", location)
-            if urls.startswith('magnet:') or urls.endswith('.torrent'):
-                msg = " === ERROR: Downloading torrents not yet supported!"
-                print(msg)
-                self.respond(400, msg)
-            else:
-                try:
-                    pipe = Popen(['yt-dlp', urls, '-o', location] +
-                                 query.get('ytdl_args', []))
                 except FileNotFoundError as e:
-                    missing_bin('yt-dlp')
-                self.respond(200, "downloading...")
+                    #print(e)
+                    missing_bin('mpv')
+                finally:
+                    delete_path = os.path.join(absolute_path, r"delete mpv cache.cmd")
+                    subprocess.run(f'{delete_path}',capture_output=True, shell=True)
+            self.respond(200, "playing...")
         else:
             self.respond(400)
 
@@ -111,7 +74,10 @@ def start():
         print(" shutting down...")
         httpd.shutdown()
 
+if getattr(sys, 'frozen', False):
+    absolute_path = os.path.dirname(sys.executable)
+else:
+    absolute_path = os.path.dirname(__file__)
 
 if __name__ == '__main__':
     start()
-
