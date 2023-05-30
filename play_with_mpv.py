@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # Plays MPV when instructed to by a chrome extension =]
 import os
 import sys
@@ -11,8 +10,10 @@ from os import listdir
 
 class CompatibilityMixin:
     def send_body(self, msg):
-        self.wfile.write(bytes(msg+'\n', 'utf-8'))
-
+        try:
+            self.wfile.write(bytes(msg+'\n', 'utf-8'))
+        except ConnectionAbortedError:
+            print(" Abort current request...wait for next......")
 
 class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
     def respond(self, code, body=None):
@@ -30,7 +31,7 @@ class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
         except:
             query = {}
         if query.get('mpv_args'):
-            print("MPV ARGS:", query.get('mpv_args'))
+            print(query.get('mpv_args'))
         if "play_url" in query:
             urls = str(query["play_url"][0])
             if urls.startswith('magnet:') or urls.endswith('.torrent'):
@@ -40,15 +41,13 @@ class Handler(BaseHTTPServer.BaseHTTPRequestHandler, CompatibilityMixin):
                     subtitles_list = [os.path.join(absolute_path,subtitle_file) for subtitle_file in listdir(absolute_path)
                                       if subtitle_file.endswith('vtt') and subtitle_file.startswith("-")]
                     subtitles = ';'.join(subtitles_list)
-                    subprocess.run(
-                        fr'cmd /c yt-dlp --no-part -o - {urls} | mpv - --sub-files-set={subtitles}',capture_output=True, shell=True)
-
+                    subprocess.run(f'play_with_mpv.cmd "{urls}" "{subtitles}"', capture_output=True, shell=True)
                 except FileNotFoundError as e:
                     #print(e)
                     missing_bin('mpv')
                 finally:
                     delete_path = os.path.join(absolute_path, r"delete mpv cache.cmd")
-                    subprocess.run(f'{delete_path}',capture_output=True, shell=True)
+                    subprocess.run(f'{delete_path}', capture_output=True, shell=True)
             self.respond(200, "playing...")
         else:
             self.respond(400)
