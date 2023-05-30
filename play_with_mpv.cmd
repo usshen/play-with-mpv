@@ -1,0 +1,1 @@
+yt-dlp --no-part -o - %1 | mpv - --sub-files-set=%2
